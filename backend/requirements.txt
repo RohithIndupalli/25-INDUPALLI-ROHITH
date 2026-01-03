@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+motor
+pymongo
+pydantic[email]
+pydantic-settings
+langgraph
+langchain
+langchain-community
+huggingface-hub
+transformers
+torch
+python-dotenv
+apscheduler
+python-multipart

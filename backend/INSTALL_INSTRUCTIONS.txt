@@ -1,0 +1,39 @@
+INSTALLATION INSTRUCTIONS
+=========================
+
+Since you're already in the backend directory with venv activated:
+
+STEP 1: Install dependencies
+-----------------------------
+Run this command:
+
+    pip install -r requirements.txt
+
+The requirements.txt has been updated to let pip automatically resolve 
+compatible versions, which should avoid dependency conflicts.
+
+STEP 2: If step 1 fails
+------------------------
+Try installing packages directly (pip will resolve versions automatically):
+
+    pip install fastapi uvicorn[standard] motor pymongo pydantic pydantic-settings langgraph langchain langchain-openai openai python-dotenv apscheduler python-multipart
+
+STEP 3: Verify installation
+----------------------------
+Test if uvicorn is installed:
+
+    python -c "import uvicorn; print('Success!')"
+
+STEP 4: Run the server
+-----------------------
+Once installation is successful:
+
+    python run.py
+
+The server should start on http://localhost:8000
+
+NOTE: Make sure your virtual environment is activated (you should see (venv) 
+in your terminal prompt). If not activated:
+
+    .\venv\Scripts\Activate.ps1
+
