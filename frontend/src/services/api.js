@@ -81,5 +81,19 @@ export const getAgentHealth = async () => {
   return response.data;
 };
 
+// Chat
+export const sendChatMessage = async (messages, userId = null) => {
+  const response = await api.post('/chat/', {
+    messages: messages,
+    user_id: userId,
+  });
+  return response.data;
+};
+
+export const getChatHealth = async () => {
+  const response = await api.get('/chat/health');
+  return response.data;
+};
+
 export default api;
 

@@ -6,6 +6,7 @@ import AssignmentIcon from '@mui/icons-material/Assignment';
 import SchoolIcon from '@mui/icons-material/School';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
+import ChatIcon from '@mui/icons-material/Chat';
 
 function Navbar() {
   const location = useLocation();
@@ -16,6 +17,7 @@ function Navbar() {
     { path: '/assignments', label: 'Assignments', icon: <AssignmentIcon /> },
     { path: '/calendar', label: 'Calendar', icon: <CalendarTodayIcon /> },
     { path: '/agent', label: 'AI Agent', icon: <SmartToyIcon /> },
+    { path: '/chat', label: 'Chat', icon: <ChatIcon /> },
   ];
 
   return (

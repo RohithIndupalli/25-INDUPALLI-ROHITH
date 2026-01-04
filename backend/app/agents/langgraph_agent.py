@@ -3,7 +3,12 @@ from typing import TypedDict, Annotated, List, Dict, Any
 from datetime import datetime, timedelta
 from langgraph.graph import StateGraph, END
 from langgraph.prebuilt import ToolNode
-from langchain_community.llms import HuggingFaceEndpoint
+try:
+    from langchain_huggingface import HuggingFaceEndpoint
+except ImportError:
+    # Fallback to the old import path
+    from langchain_community.llms import HuggingFaceEndpoint
+from bson import ObjectId
 from app.database.connection import get_database
 from app.models.assignment import Assignment
 from app.models.course import Course
@@ -11,6 +16,32 @@ from app.services.calendar_service import CalendarService
 from app.services.notification_service import NotificationService
 from app.agents.task_planner import TaskPlanner
 from app.config import settings
+
+def dict_to_assignment(assignment_dict: Dict) -> Assignment:
+    """Convert dictionary to Assignment object, handling ObjectId conversion."""
+    from app.models.user import PyObjectId, ObjectId  # Import here to avoid circular imports
+    
+    # Create a copy to avoid modifying the original
+    data = assignment_dict.copy()
+    
+    # Handle _id field - ensure it's either ObjectId or PyObjectId
+    if "_id" in data:
+        if isinstance(data["_id"], str):
+            try:
+                data["_id"] = PyObjectId(data["_id"]) if ObjectId.is_valid(data["_id"]) else data["_id"]
+            except Exception:
+                pass
+    elif "id" in data and data["id"] is not None:
+        # If using 'id' field (from model_dump), convert to _id
+        if isinstance(data["id"], str):
+            try:
+                data["_id"] = PyObjectId(data["id"]) if ObjectId.is_valid(data["id"]) else data["id"]
+            except Exception:
+                data["_id"] = data["id"]
+        del data["id"]
+    
+    # Ensure the ID is properly set in the model
+    return Assignment(**data)
 
 class AgentState(TypedDict):
     """State for the LangGraph agent."""
@@ -27,15 +58,19 @@ class StudyPlannerAgent:
     
     def __init__(self):
         """Initialize the agent."""
+        self.llm = None
         if settings.HUGGINGFACE_API_KEY:
-            self.llm = HuggingFaceEndpoint(
-                repo_id=settings.HUGGINGFACE_MODEL,
-                temperature=0.7,
-                huggingfacehub_api_token=settings.HUGGINGFACE_API_KEY,
-                max_length=512
-            )
-        else:
-            self.llm = None  # Will use fallback logic
+            try:
+                self.llm = HuggingFaceEndpoint(
+                    repo_id=settings.HUGGINGFACE_MODEL,
+                    temperature=0.7,
+                    huggingfacehub_api_token=settings.HUGGINGFACE_API_KEY,
+                    max_new_tokens=512
+                )
+            except Exception as e:
+                print(f"Warning: Failed to initialize Hugging Face LLM: {e}")
+                print("Agent will work with limited AI features (rule-based recommendations only)")
+                self.llm = None
         
         self.graph = self._build_graph()
     
@@ -89,7 +124,7 @@ class StudyPlannerAgent:
     
     async def prioritize_tasks(self, state: AgentState) -> AgentState:
         """Prioritize assignments using TaskPlanner."""
-        assignments = [Assignment(**a) for a in state["assignments"]]
+        assignments = [dict_to_assignment(a) for a in state["assignments"]]
         prioritized = await TaskPlanner.prioritize_assignments(state["user_id"], assignments)
         
         state["assignments"] = [a.model_dump(mode="json") for a in prioritized]
@@ -104,19 +139,23 @@ class StudyPlannerAgent:
         assignments = []
         for a in state["assignments"][:5]:  # Top 5
             try:
-                assignments.append(Assignment(**a))
+                assignments.append(dict_to_assignment(a))
             except Exception as e:
                 print(f"Warning: Skipping invalid assignment in schedule suggestions: {e}")
                 continue
         
         for assignment in assignments:
-            study_times = await TaskPlanner.suggest_study_times(state["user_id"], assignment)
-            suggestions.append({
-                "assignment_id": str(assignment.id),
-                "title": assignment.title,
-                "suggested_times": [st.isoformat() for st in study_times],
-                "estimated_hours": assignment.estimated_hours
-            })
+            try:
+                study_times = await TaskPlanner.suggest_study_times(state["user_id"], assignment)
+                suggestions.append({
+                    "assignment_id": str(assignment.id),
+                    "title": assignment.title,
+                    "suggested_times": [st.isoformat() for st in study_times],
+                    "estimated_hours": assignment.estimated_hours
+                })
+            except Exception as e:
+                print(f"Warning: Error suggesting study times for assignment {assignment.id}: {e}")
+                continue
         
         state["suggestions"] = suggestions
         state["current_task"] = "schedule_suggestions_generated"
@@ -134,11 +173,11 @@ class StudyPlannerAgent:
     
     async def generate_recommendations(self, state: AgentState) -> AgentState:
         """Generate final recommendations."""
-        # Convert dict to Assignment models
+        # Convert dict to Assignment models (handle ObjectId properly)
         assignments = []
         for a in state["assignments"]:
             try:
-                assignments.append(Assignment(**a))
+                assignments.append(dict_to_assignment(a))
             except Exception as e:
                 print(f"Warning: Skipping invalid assignment in recommendations: {e}")
                 continue
@@ -162,7 +201,12 @@ class StudyPlannerAgent:
 Recommendations:"""
                 
                 response = await self.llm.ainvoke(prompt)
-                recommendations = [r.strip() for r in response.split('\n') if r.strip() and not r.strip().startswith('Recommendations:')]
+                # Handle response - it might be a string or have a different format
+                response_text = response if isinstance(response, str) else str(response)
+                recommendations = [r.strip() for r in response_text.split('\n') if r.strip() and not r.strip().startswith('Recommendations:')]
+                # If no valid recommendations found, use fallback
+                if not recommendations:
+                    recommendations = study_plan.get("recommendations", [])
             except Exception as e:
                 print(f"Error generating AI recommendations: {e}")
                 recommendations = study_plan.get("recommendations", [])
@@ -197,7 +241,7 @@ Recommendations:"""
             "suggestions": final_state["suggestions"],
             "study_plan": TaskPlanner.generate_study_plan(
                 user_id, 
-                [Assignment(**a) for a in final_state["assignments"]]
+                [dict_to_assignment(a) for a in final_state["assignments"]]
             )
         }
 

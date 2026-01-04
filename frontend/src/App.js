@@ -7,6 +7,7 @@ import Courses from './pages/Courses';
 import Assignments from './pages/Assignments';
 import Calendar from './pages/Calendar';
 import Agent from './pages/Agent';
+import Chat from './pages/Chat';
 import Navbar from './components/Navbar';
 import './App.css';
 
@@ -45,6 +46,7 @@ function App() {
             <Route path="/assignments" element={<Assignments userId={userId} />} />
             <Route path="/calendar" element={<Calendar userId={userId} />} />
             <Route path="/agent" element={<Agent userId={userId} />} />
+            <Route path="/chat" element={<Chat userId={userId} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

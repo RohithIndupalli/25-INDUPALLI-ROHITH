@@ -31,8 +31,8 @@ class AssignmentUpdate(BaseModel):
     category: Optional[str] = None
 
 class Assignment(AssignmentBase):
-    """Assignment model."""
-    id: PyObjectId = Field(alias="_id")
+    """Assignment model that handles both string and ObjectId types."""
+    id: PyObjectId = Field(alias="_id", default_factory=PyObjectId)
     user_id: str
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -44,4 +44,11 @@ class Assignment(AssignmentBase):
         "arbitrary_types_allowed": True,
         "json_encoders": {ObjectId: str},
     }
+    
+    def dict(self, **kwargs):
+        """Override dict method to ensure proper ID serialization."""
+        result = super().model_dump(**kwargs)
+        if "_id" in result and isinstance(result["_id"], ObjectId):
+            result["_id"] = str(result["_id"])
+        return result
 

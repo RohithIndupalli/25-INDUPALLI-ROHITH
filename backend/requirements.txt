@@ -10,6 +10,7 @@ langchain-community
 huggingface-hub
 transformers
 torch
+httpx
 python-dotenv
 apscheduler
 python-multipart
